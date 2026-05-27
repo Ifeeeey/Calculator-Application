@@ -382,12 +382,15 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
 
-      const r = +data.result % 1 === 0 ? data.result : parseFloat(data.result.toFixed(10));
+      const result = data?.data?.result ?? data?.result;
+      const entry  = data?.data?.entry  ?? data?.entry;
+      if (result === undefined || result === null) throw new Error('No result returned');
+      const r = Number(result) % 1 === 0 ? Number(result) : parseFloat(Number(result).toFixed(10));
       setDisplay(expression + ' =', r);
       popAnim();
       expr = r.toString();
       justEvaled = true;
-      prependHistoryItem(data.entry);
+      if (entry) prependHistoryItem(entry);
     } catch (err) {
       setDisplay(expression, err.message, true);
     }
