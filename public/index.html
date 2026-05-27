@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Calculator</title>
+  <link href="https://fonts.googleapis.com/css2?family=Syne+Mono&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+  <style>
+    :root {
+      --bg:        #0d0d0f;
+      --surface:   #17171a;
+      --surface2:  #1f1f24;
+      --border:    #2a2a30;
+      --accent:    #e8ff47;
+      --accent2:   #47c8ff;
+      --danger:    #ff5c5c;
+      --text:      #f0f0f2;
+      --muted:     #5a5a66;
+      --radius:    14px;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Sans', sans-serif;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      gap: 24px;
+      flex-wrap: wrap;
+    }
+
+    /* noise overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0;
+    }
+
+    .calculator-wrap, .history-wrap { position: relative; z-index: 1; }
+
+    /* ── CALCULATOR ── */
+    .calculator {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      width: 340px;
+      padding: 24px;
+      box-shadow: 0 32px 80px rgba(0,0,0,.6), 0 0 0 1px rgba(255,255,255,.04);
+    }
+
+    .label {
+      font-family: 'Syne Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--muted);
+      margin-bottom: 16px;
+    }
+
+    /* display */
+    .display {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      margin-bottom: 20px;
+      min-height: 90px;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .display-expr {
+      font-family: 'Syne Mono', monospace;
+      font-size: 13px;
+      color: var(--muted);
+      min-height: 18px;
+      word-break: break-all;
+      transition: color .2s;
+    }
+    .display-expr.error { color: var(--danger); }
+
+    .display-result {
+      font-family: 'Syne Mono', monospace;
+      font-size: 32px;
+      font-weight: 400;
+      color: var(--text);
+      text-align: right;
+      word-break: break-all;
+      transition: transform .15s cubic-bezier(.34,1.56,.64,1);
+    }
+    .display-result.pop { transform: scale(1.04); }
+
+    /* buttons */
+    .btn-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 10px;
+    }
+
+    .btn {
+      border: none;
+      border-radius: 10px;
+      font-family: 'Syne Mono', monospace;
+      font-size: 15px;
+      cursor: pointer;
+      height: 58px;
+      transition: transform .08s, background .12s, box-shadow .12s;
+      position: relative;
+      overflow: hidden;
+    }
+    .btn::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: white;
+      opacity: 0;
+      transition: opacity .12s;
+      border-radius: inherit;
+    }
+    .btn:active { transform: scale(.93); }
+    .btn:active::after { opacity: .06; }
+
+    .btn-num  { background: var(--surface2); color: var(--text); }
+    .btn-num:hover  { background: #27272e; }
+
+    .btn-op   { background: #252530; color: var(--accent2); }
+    .btn-op:hover   { background: #2d2d3a; }
+
+    .btn-eq   { background: var(--accent); color: #0d0d0f; font-size: 18px; }
+    .btn-eq:hover   { background: #d4e840; box-shadow: 0 0 20px rgba(232,255,71,.25); }
+
+    .btn-clear{ background: #251a1a; color: var(--danger); }
+    .btn-clear:hover{ background: #2f1f1f; }
+
+    .btn-fn   { background: #1a2030; color: var(--accent2); font-size: 12px; }
+    .btn-fn:hover   { background: #202840; }
+
+    .btn-span2 { grid-column: span 2; }
+
+    /* ── HISTORY ── */
+    .history-wrap {
+      width: 300px;
+    }
+
+    .history-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 14px;
+    }
+
+    .btn-clear-all {
+      font-family: 'Syne Mono', monospace;
+      font-size: 10px;
+      letter-spacing: .1em;
+      background: none;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--muted);
+      padding: 4px 10px;
+      cursor: pointer;
+      transition: color .15s, border-color .15s;
+    }
+    .btn-clear-all:hover { color: var(--danger); border-color: var(--danger); }
+
+    .history-list {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      max-height: 480px;
+      overflow-y: auto;
+      scrollbar-width: thin;
+      scrollbar-color: var(--border) transparent;
+    }
+
+    .history-empty {
+      font-size: 13px;
+      color: var(--muted);
+      text-align: center;
+      padding: 40px 0;
+      font-family: 'Syne Mono', monospace;
+    }
+
+    .history-item {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 8px;
+      cursor: pointer;
+      transition: border-color .15s, background .15s;
+      animation: slideIn .2s ease;
+    }
+    .history-item:hover { border-color: var(--accent); background: var(--surface2); }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(-8px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .history-expr {
+      font-size: 12px;
+      color: var(--muted);
+      font-family: 'Syne Mono', monospace;
+      word-break: break-all;
+    }
+    .history-result {
+      font-family: 'Syne Mono', monospace;
+      font-size: 16px;
+      color: var(--accent);
+      white-space: nowrap;
+    }
+    .history-time {
+      font-size: 10px;
+      color: var(--muted);
+      margin-top: 4px;
+    }
+
+    .history-del {
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 14px;
+      padding: 0 2px;
+      line-height: 1;
+      transition: color .15s;
+      flex-shrink: 0;
+    }
+    .history-del:hover { color: var(--danger); }
+
+    @media (max-width: 720px) {
+      body { flex-direction: column; align-items: center; }
+      .history-wrap { width: 340px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- CALCULATOR -->
+<div class="calculator-wrap">
+  <div class="calculator">
+    <div class="label">CALC / 01</div>
+    <div class="display">
+      <div class="display-expr" id="expr"></div>
+      <div class="display-result" id="result">0</div>
+    </div>
+    <div class="btn-grid">
+      <!-- row 1 -->
+      <button class="btn btn-clear" data-action="clear">C</button>
+      <button class="btn btn-fn"    data-action="sqrt">√</button>
+      <button class="btn btn-op"    data-action="op" data-val="%">%</button>
+      <button class="btn btn-op"    data-action="op" data-val="^">^</button>
+      <!-- row 2 -->
+      <button class="btn btn-num"   data-action="digit" data-val="7">7</button>
+      <button class="btn btn-num"   data-action="digit" data-val="8">8</button>
+      <button class="btn btn-num"   data-action="digit" data-val="9">9</button>
+      <button class="btn btn-op"    data-action="op"    data-val="/">÷</button>
+      <!-- row 3 -->
+      <button class="btn btn-num"   data-action="digit" data-val="4">4</button>
+      <button class="btn btn-num"   data-action="digit" data-val="5">5</button>
+      <button class="btn btn-num"   data-action="digit" data-val="6">6</button>
+      <button class="btn btn-op"    data-action="op"    data-val="*">×</button>
+      <!-- row 4 -->
+      <button class="btn btn-num"   data-action="digit" data-val="1">1</button>
+      <button class="btn btn-num"   data-action="digit" data-val="2">2</button>
+      <button class="btn btn-num"   data-action="digit" data-val="3">3</button>
+      <button class="btn btn-op"    data-action="op"    data-val="-">−</button>
+      <!-- row 5 -->
+      <button class="btn btn-num"   data-action="digit" data-val="0">0</button>
+      <button class="btn btn-num"   data-action="digit" data-val=".">.</button>
+      <button class="btn btn-fn"    data-action="paren">(  )</button>
+      <button class="btn btn-op"    data-action="op"    data-val="+">+</button>
+      <!-- row 6 -->
+      <button class="btn btn-fn"    data-action="backspace">⌫</button>
+      <button class="btn btn-eq btn-span2" data-action="equals">=</button>
+      <button class="btn btn-fn"    data-action="negate">+/−</button>
+    </div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div class="history-wrap">
+  <div class="history-header">
+    <div class="label" style="margin:0">HISTORY</div>
+    <button class="btn-clear-all" id="clearAll">CLEAR ALL</button>
+  </div>
+  <div class="history-list" id="historyList">
+    <div class="history-empty" id="historyEmpty">no calculations yet</div>
+  </div>
+</div>
+
+<script>
+  let expr = '';
+  let justEvaled = false;
+
+  const exprEl   = document.getElementById('expr');
+  const resultEl = document.getElementById('result');
+  const listEl   = document.getElementById('historyList');
+  const emptyEl  = document.getElementById('historyEmpty');
+
+  function setDisplay(e, r, isErr) {
+    exprEl.textContent = e;
+    exprEl.className = 'display-expr' + (isErr ? ' error' : '');
+    resultEl.textContent = r;
+  }
+
+  function popAnim() {
+    resultEl.classList.remove('pop');
+    void resultEl.offsetWidth;
+    resultEl.classList.add('pop');
+    setTimeout(() => resultEl.classList.remove('pop'), 200);
+  }
+
+  function appendExpr(val) {
+    if (justEvaled) { expr = ''; justEvaled = false; }
+    expr += val;
+    setDisplay(expr, resultEl.textContent);
+  }
+
+  function handleAction(action, val) {
+    switch (action) {
+      case 'digit':
+        appendExpr(val);
+        break;
+      case 'op':
+        if (justEvaled) justEvaled = false;
+        // avoid double operators
+        if (expr && /[+\-*\/^%]$/.test(expr)) expr = expr.slice(0, -1);
+        expr += val;
+        setDisplay(expr, resultEl.textContent);
+        break;
+      case 'sqrt':
+        if (justEvaled) { expr = resultEl.textContent; justEvaled = false; }
+        expr = 'sqrt(' + (expr || '0') + ')';
+        setDisplay(expr, resultEl.textContent);
+        break;
+      case 'paren':
+        if (justEvaled) { expr = ''; justEvaled = false; }
+        const opens  = (expr.match(/\(/g) || []).length;
+        const closes = (expr.match(/\)/g) || []).length;
+        expr += opens > closes ? ')' : '(';
+        setDisplay(expr, resultEl.textContent);
+        break;
+      case 'backspace':
+        if (justEvaled) { expr = ''; justEvaled = false; setDisplay('', '0'); break; }
+        expr = expr.slice(0, -1);
+        setDisplay(expr, expr ? resultEl.textContent : '0');
+        break;
+      case 'negate':
+        if (expr.startsWith('-')) expr = expr.slice(1);
+        else if (expr) expr = '-' + expr;
+        setDisplay(expr, resultEl.textContent);
+        break;
+      case 'clear':
+        expr = ''; justEvaled = false;
+        setDisplay('', '0');
+        break;
+      case 'equals':
+        if (!expr) break;
+        submitCalc(expr);
+        break;
+    }
+  }
+
+  async function submitCalc(expression) {
+    try {
+      const res  = await fetch('/api/calculate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ expression }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      const r = +data.result % 1 === 0 ? data.result : parseFloat(data.result.toFixed(10));
+      setDisplay(expression + ' =', r);
+      popAnim();
+      expr = r.toString();
+      justEvaled = true;
+      prependHistoryItem(data.entry);
+    } catch (err) {
+      setDisplay(expression, err.message, true);
+    }
+  }
+
+  // history rendering
+  function prependHistoryItem(entry) {
+    emptyEl.style.display = 'none';
+    const el = buildHistoryEl(entry);
+    listEl.prepend(el);
+  }
+
+  function buildHistoryEl(entry) {
+    const wrap = document.createElement('div');
+    wrap.className = 'history-item';
+    wrap.dataset.id = entry.id;
+    const time = new Date(entry.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    wrap.innerHTML = `
+      <div>
+        <div class="history-expr">${entry.expression}</div>
+        <div class="history-result">= ${entry.result}</div>
+        <div class="history-time">${time}</div>
+      </div>
+      <button class="history-del" title="Remove">✕</button>`;
+
+    // click to reuse
+    wrap.querySelector('.history-expr, .history-result').addEventListener('click', () => {
+      expr = entry.result.toString(); justEvaled = true;
+      setDisplay(entry.expression + ' =', entry.result);
+    });
+    wrap.addEventListener('click', (e) => {
+      if (!e.target.classList.contains('history-del')) {
+        expr = entry.result.toString(); justEvaled = true;
+        setDisplay(entry.expression + ' =', entry.result);
+      }
+    });
+    wrap.querySelector('.history-del').addEventListener('click', async (e) => {
+      e.stopPropagation();
+      await fetch('/api/history/' + entry.id, { method: 'DELETE' });
+      wrap.remove();
+      if (!listEl.querySelector('.history-item')) emptyEl.style.display = '';
+    });
+    return wrap;
+  }
+
+  async function loadHistory() {
+    const res  = await fetch('/api/history');
+    const data = await res.json();
+    if (data.length) {
+      emptyEl.style.display = 'none';
+      data.forEach(e => listEl.appendChild(buildHistoryEl(e)));
+    }
+  }
+
+  document.getElementById('clearAll').addEventListener('click', async () => {
+    await fetch('/api/history', { method: 'DELETE' });
+    listEl.querySelectorAll('.history-item').forEach(el => el.remove());
+    emptyEl.style.display = '';
+  });
+
+  // button clicks
+  document.querySelectorAll('.btn').forEach(btn => {
+    btn.addEventListener('click', () => handleAction(btn.dataset.action, btn.dataset.val));
+  });
+
+  // keyboard support
+  document.addEventListener('keydown', e => {
+    if (e.key >= '0' && e.key <= '9') handleAction('digit', e.key);
+    else if (e.key === '.') handleAction('digit', '.');
+    else if (['+', '-', '*', '/', '%', '^'].includes(e.key)) handleAction('op', e.key);
+    else if (e.key === 'Enter' || e.key === '=') handleAction('equals');
+    else if (e.key === 'Backspace') handleAction('backspace');
+    else if (e.key === 'Escape') handleAction('clear');
+    else if (e.key === '(') { expr += '('; setDisplay(expr, resultEl.textContent); }
+    else if (e.key === ')') { expr += ')'; setDisplay(expr, resultEl.textContent); }
+  });
+
+  loadHistory();
+</script>
+</body>
+</html>
